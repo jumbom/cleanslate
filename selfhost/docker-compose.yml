@@ -1,0 +1,97 @@
+# Self-hosted Clean Slate (fork with History) at food.pocket-box.com
+#
+# Lives in /root/cleanslate-stack/ next to:
+#   .env          secrets (created once by setup-env.sh)
+#   cleanslate/   git clone of github.com/jumbom/cleanslate
+#
+# Copy this file one level up:  cp cleanslate/selfhost/docker-compose.yml .
+# The client and API images are built from the fork; the auth server is unchanged.
+# Caddy (in /root/n8n-stack) reaches the containers over the shared-proxy network.
+name: cleanslate
+
+services:
+  database:
+    image: postgres:15
+    restart: always
+    container_name: cleanslate-db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+  graphql-server:
+    build:
+      context: ./cleanslate
+      dockerfile: Dockerfile.graphql
+    image: cleanslate-graphql-server:custom
+    pull_policy: build
+    restart: always
+    container_name: cleanslate-graphql
+    environment:
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      HASURA_GRAPHQL_CORS_DOMAIN: https://${DOMAIN}
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@database:5432/postgres
+      HASURA_GRAPHQL_DEV_MODE: 'false'
+      HASURA_GRAPHQL_ENABLE_CONSOLE: 'true'
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      HASURA_GRAPHQL_JWT_SECRET: ${HASURA_GRAPHQL_JWT_SECRET}
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - default
+      - shared-proxy
+
+  authentication-server:
+    image: ghcr.io/successible/cleanslate/authentication-server:latest
+    restart: always
+    container_name: cleanslate-auth
+    environment:
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      JWT_SIGNING_SECRET: ${JWT_SIGNING_SECRET}
+      NEXT_PUBLIC_USE_FIREBASE: 'false'
+    depends_on:
+      - database
+      - graphql-server
+    networks:
+      - default
+      - shared-proxy
+
+  client:
+    build:
+      context: ./cleanslate
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_FIREBASE_CONFIG={}
+        - NEXT_PUBLIC_LEGAL_LINK=no
+        - NEXT_PUBLIC_LOGIN_WITH_APPLE=no
+        - NEXT_PUBLIC_LOGIN_WITH_FACEBOOK=no
+        - NEXT_PUBLIC_LOGIN_WITH_GITHUB=no
+        - NEXT_PUBLIC_LOGIN_WITH_GOOGLE=no
+        - NEXT_PUBLIC_REACT_SENTRY_DSN=no
+        - NEXT_PUBLIC_USE_FIREBASE=false
+        - NEXT_PUBLIC_VERSION=${NEXT_PUBLIC_VERSION:-custom}
+    image: cleanslate-client:custom
+    pull_policy: build
+    restart: always
+    container_name: cleanslate-client
+    depends_on:
+      - graphql-server
+    networks:
+      - default
+      - shared-proxy
+
+volumes:
+  database:
+
+networks:
+  default:
+  shared-proxy:
+    external: true
