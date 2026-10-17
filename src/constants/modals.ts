@@ -9,6 +9,7 @@ export const modals = [
   'navbar.foodFormModalVisibility',
   'navbar.foodModalVisibility',
   'navbar.helpModalVisibility',
+  'navbar.historyModalVisibility',
   'navbar.informationModalVisibility',
   'navbar.itemModalVisibility',
   'navbar.menuVisibility',

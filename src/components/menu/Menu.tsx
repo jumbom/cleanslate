@@ -2,6 +2,7 @@ import { css } from '@emotion/react'
 import React from 'react'
 import Density from '../../assets/common/density.svg'
 import CustomFood from '../../assets/common/food.svg'
+import HistoryIcon from '../../assets/common/history.svg'
 import Logout from '../../assets/common/logout.svg'
 import Mortarboard from '../../assets/common/mortarboard.svg'
 import CustomRecipe from '../../assets/common/recipe.svg'
@@ -99,6 +100,26 @@ export const Menu: React.FC = () => {
             src={CustomRecipe}
           />
           <div className="ml15">Recipes</div>
+        </button>
+      </div>
+
+      <div css={section} className={'w100'}>
+        <div>Track</div>
+        <button
+          type="button"
+          id="openHistoryModal"
+          onClick={() => {
+            dispatch('openHistoryModal')
+          }}
+        >
+          <Image
+            width={35}
+            height={35}
+            alt="Bar chart"
+            className="icon"
+            src={HistoryIcon}
+          />
+          <div className="ml15">History</div>
         </button>
       </div>
 

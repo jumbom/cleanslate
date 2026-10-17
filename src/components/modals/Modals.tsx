@@ -17,6 +17,7 @@ import { ExerciseForm } from '../forms/ExerciseForm/ExerciseForm'
 import { RecipeForm } from '../forms/RecipeForm/RecipeForm'
 import { TargetForm } from '../forms/TargetForm/TargetForm'
 import { Help } from '../help/Help'
+import { HistoryModal } from '../history-modal/HistoryModal'
 import { InformationModal } from '../information-modal/InformationModal'
 import { IngredientModal } from '../ingredient-modal/IngredientModal'
 import { ItemUpdateModal } from '../item-update-modal/ItemUpdateModal'
@@ -61,6 +62,7 @@ const Modals: React.FC<props> = ({ foods, profile, recipes }) => {
     foodModalVisibility,
     foodToUpdate,
     helpModalVisibility,
+    historyModalVisibility,
     Information,
     informationModalVisibility,
     itemModalVisibility,
@@ -370,6 +372,17 @@ const Modals: React.FC<props> = ({ foods, profile, recipes }) => {
       }}
     >
       <PWAPrompt profile={profile} />
+    </Modal>,
+    // History modal
+    <Modal
+      key="navbar.historyModalVisibility"
+      closeModal={() => {
+        dispatch('closeHistoryModal')
+      }}
+      name="navbar.historyModalVisibility"
+      visible={historyModalVisibility}
+    >
+      <HistoryModal profile={profile} visible={historyModalVisibility} />
     </Modal>,
     // Density modal
     <Modal

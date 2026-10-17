@@ -1,0 +1,48 @@
+table:
+  name: weekly_weights
+  schema: public
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        profile:
+          _eq: X-Hasura-User-Id
+      set:
+        profile: x-hasura-User-Id
+      columns:
+        - weekStart
+        - weightKg
+    comment: ""
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - createdAt
+        - id
+        - profile
+        - updatedAt
+        - weekStart
+        - weightKg
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - weightKg
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+      check:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""

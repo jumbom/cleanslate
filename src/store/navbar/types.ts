@@ -25,6 +25,7 @@ export type NavbarState = {
   foodModalVisibility: boolean
   foodToUpdate: string | null
   helpModalVisibility: boolean
+  historyModalVisibility: boolean
   Information: React.ReactNode | string | null
   informationModalVisibility: boolean
   itemModalVisibility: boolean
@@ -56,6 +57,7 @@ export type NavbarEvents = {
   closeFoodModal: undefined
   closeFoodScoreModal: undefined
   closeHelpModal: undefined
+  closeHistoryModal: undefined
   closeInformationModal: undefined
   closeItemModal: undefined
   closeMenu: undefined
@@ -79,6 +81,7 @@ export type NavbarEvents = {
   openFoodFormModal: string | null
   openFoodModal: undefined
   openHelpModal: undefined
+  openHistoryModal: undefined
   openInformationModal: React.ReactNode | string | null
   openItemModal: CommonItem
   openMenu: undefined

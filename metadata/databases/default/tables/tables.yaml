@@ -5,3 +5,5 @@
 - "!include public_profiles.yaml"
 - "!include public_quick_logs.yaml"
 - "!include public_recipes.yaml"
+- "!include public_strategies.yaml"
+- "!include public_weekly_weights.yaml"

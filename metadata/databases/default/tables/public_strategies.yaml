@@ -1,0 +1,61 @@
+table:
+  name: strategies
+  schema: public
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        profile:
+          _eq: X-Hasura-User-Id
+      set:
+        profile: x-hasura-User-Id
+      columns:
+        - endDate
+        - grade
+        - name
+        - planNote
+        - reviewNote
+        - startDate
+    comment: ""
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - createdAt
+        - endDate
+        - grade
+        - id
+        - name
+        - planNote
+        - profile
+        - reviewNote
+        - startDate
+        - updatedAt
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - endDate
+        - grade
+        - name
+        - planNote
+        - reviewNote
+        - startDate
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+      check:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        profile:
+          _eq: X-Hasura-User-Id
+    comment: ""

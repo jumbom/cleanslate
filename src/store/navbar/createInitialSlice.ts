@@ -18,6 +18,7 @@ export const createInitialSlice = (): NavbarSlice => {
       foodModalVisibility: false,
       foodToUpdate: null,
       helpModalVisibility: false,
+      historyModalVisibility: false,
       Information: null,
       informationModalVisibility: false,
       itemModalVisibility: false,

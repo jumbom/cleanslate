@@ -147,6 +147,14 @@ export const navbar: StoreonModule<CleanslateSlices, NavbarEvents> = (
     })
   })
 
+  store.on('closeHistoryModal', (state) => {
+    return updateModal(state, 'navbar.historyModalVisibility', false)
+  })
+
+  store.on('openHistoryModal', (state) => {
+    return updateModal(state, 'navbar.historyModalVisibility', true)
+  })
+
   store.on('closeTargetModal', (state) => {
     return updateModal(state, 'navbar.targetModalVisibility', false)
   })
