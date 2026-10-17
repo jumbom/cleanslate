@@ -58,7 +58,7 @@ const clock = (minutes: number | null) => {
   const m = Math.round(minutes) % (24 * 60)
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
-const PART_COLORS = ['#ffd166', '#93dcdc', '#ad90de']
+const PART_COLORS = ['#ffd166', '#93dcdc', '#5b7fb5']
 
 /** A thin bar showing how calories were split over the eating window */
 const Distribution: React.FC<{
