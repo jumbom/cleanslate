@@ -166,7 +166,12 @@ const Modals: React.FC<props> = ({ foods, profile, recipes }) => {
       name="navbar.barcodeModalVisibility"
       visible={barcodeModalVisibility}
     >
-      <BarcodeModal profile={profile} type={barcodeModalMode} />
+      <BarcodeModal
+        key={navbar.barcodeSession}
+        profile={profile}
+        foods={foods}
+        type={barcodeModalMode}
+      />
     </Modal>,
 
     // target-form
@@ -329,7 +334,11 @@ const Modals: React.FC<props> = ({ foods, profile, recipes }) => {
       name="navbar.quickLogEditModalVisibility"
       visible={quickLogEditModalVisibility}
     >
-      <QuickLogUpdateModal profile={profile} item={itemToUpdate} />
+      <QuickLogUpdateModal
+        profile={profile}
+        item={itemToUpdate}
+        foods={foods}
+      />
     </Modal>,
     <Modal
       key="navbar.helpModalVisibility"

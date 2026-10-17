@@ -248,6 +248,7 @@ export const navbar: StoreonModule<CleanslateSlices, NavbarEvents> = (
     const newState = updateModal(state, 'navbar.barcodeModalVisibility', false)
     return produce(newState, (draft) => {
       draft.navbar.barcodeModalMode = 'log'
+      draft.navbar.barcodePreset = null
     })
   })
 
@@ -255,6 +256,18 @@ export const navbar: StoreonModule<CleanslateSlices, NavbarEvents> = (
     const newState = updateModal(state, 'navbar.barcodeModalVisibility', true)
     return produce(newState, (draft) => {
       draft.navbar.barcodeModalMode = event
+      draft.navbar.barcodePreset = null
+      draft.navbar.barcodeSession = (draft.navbar.barcodeSession || 0) + 1
+    })
+  })
+
+  // Log a product picked from the Open Food Facts search, skipping the camera
+  store.on('openBarcodeModalWithCode', (state, code) => {
+    const newState = updateModal(state, 'navbar.barcodeModalVisibility', true)
+    return produce(newState, (draft) => {
+      draft.navbar.barcodeModalMode = 'log'
+      draft.navbar.barcodePreset = code
+      draft.navbar.barcodeSession = (draft.navbar.barcodeSession || 0) + 1
     })
   })
 

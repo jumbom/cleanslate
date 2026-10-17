@@ -14,6 +14,8 @@ export type NavbarState = {
   activeModals: readonly any[]
   addIngredientModalVisibility: boolean
   barcodeModalMode: BarcodeModalMode
+  barcodePreset: string | null // Open Food Facts code chosen from search
+  barcodeSession: number // Changes on every open, so the modal starts fresh
   barcodeModalVisibility: boolean
   bodyFatPercentageModalVisibility: boolean
   caloricMaintenanceModalVisibility: boolean
@@ -74,6 +76,7 @@ export type NavbarEvents = {
   isOffline: boolean
   openAddIngredientModal: string | null
   openBarcodeModal: BarcodeModalMode
+  openBarcodeModalWithCode: string
   openBodyFatPercentageModal: undefined
   openDensityModal: undefined
   openError: string

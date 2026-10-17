@@ -2,7 +2,7 @@ import { css } from '@emotion/react'
 import axios from 'axios'
 import { compareVersions } from 'compare-versions'
 import { debounce } from 'lodash-es'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'react-toastify'
 import { UAParser } from 'ua-parser-js'
 import BarcodeWithoutScanner from '../../assets/common/barcode-without-scanner.svg'
@@ -11,27 +11,49 @@ import { capitalize } from '../../helpers/capitalize'
 import { getDispatch } from '../../helpers/getDispatch'
 import { isMobileSafari } from '../../helpers/isMobileSafari'
 import { isNumeric } from '../../helpers/isNumeric'
+import {
+  buildCustomFood,
+  parseProduct,
+} from '../../helpers/openFoodFacts/productToFood'
 import { round } from '../../helpers/round'
 import { Food } from '../../models/food'
 import { type Barcode, defaultMeal } from '../../models/log'
 import type { Profile } from '../../models/profile'
+import type { NavbarState } from '../../store/navbar/types'
+import { useStoreon } from '../../storeon'
+import { colors } from '../../theme'
 import { Explanation } from '../explanation/Explanation'
 import { Image } from '../image/Image'
 import { mapOtherVolumeUnitToTbsp } from '../macros/helpers/mapOtherVolumeUnitToTbsp'
 import Scan from '../scanner/components/scan'
+import { Spinner } from '../spinner/Spinner'
 import { ButtonPanel } from '../standard-adder/components/ButtonPanel'
 import { InputFields } from '../standard-adder/components/InputFields'
 import { submitEditor } from '../standard-adder/helpers/submitEditor'
 
-type props = { profile: Profile; type: 'ingredient' | 'log' }
-export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
+type props = {
+  profile: Profile
+  type: 'ingredient' | 'log'
+  foods?: Food[]
+}
+export const BarcodeModal: React.FC<props> = ({
+  foods = [],
+  profile,
+  type,
+}) => {
   const { enablePlanning } = profile
   const dispatch = getDispatch()
+  const { navbar }: { navbar: NavbarState } = useStoreon('navbar')
+  // Set when a product was picked from the shop product search
+  const preset = navbar.barcodePreset
 
   const [barcode, setBarcode] = useState(null as Barcode | null)
+  const [brand, setBrand] = useState(null as string | null)
+  const [existingFood, setExistingFood] = useState(null as Food | null)
   const [amount, setAmount] = useState('')
   const [meal, setMeal] = useState(defaultMeal)
-  const [createCustomFood, setCreateCustomFood] = useState(false)
+  // Save products to your own foods by default, so search finds them next time
+  const [createCustomFood, setCreateCustomFood] = useState(type === 'log')
 
   const [unit, setUnit] = useState('GRAM' as Unit)
   const [ran, setRan] = useState(false)
@@ -48,21 +70,31 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
           toast.error('Matching food not found!')
           return
         }
-        const product = r.data.product
-        const { nutriments, product_name, nutrition_data_per } = product
-        const { proteins_100g, proteins_serving } = nutriments
-
-        setBarcode({
-          calories_per_gram: nutriments['energy-kcal_100g'] / 100, // or mL, OpenFoodFacts names it 100 gram as a legacy behaviour
-          calories_per_serving: nutriments['energy-kcal_serving'],
-          code: code,
-          name: product_name,
-          nutrition_data_per,
-          protein_per_gram: proteins_100g / 100, // or mL, OpenFoodFacts names it 100 gram as a legacy behaviour
-          protein_per_serving: proteins_serving,
-        })
+        const parsed = parseProduct(code, r.data.product)
+        if (!parsed) {
+          dispatch('closeBarcodeModal')
+          toast.error(
+            'This product has no calorie information in Open Food Facts yet.'
+          )
+          return
+        }
+        // Already saved as one of your foods? Log that instead of a duplicate.
+        const saved = foods.find((food) => food.openFoodFactsCode === code)
+        setExistingFood(saved || null)
+        setBrand(parsed.brand)
+        setBarcode(parsed.barcode)
+      })
+      .catch(() => {
+        dispatch('closeBarcodeModal')
+        toast.error("Couldn't reach Open Food Facts. Please try again.")
       })
   }, 100)
+
+  useEffect(() => {
+    if (preset && !ran) {
+      fetchData(preset)
+    }
+  }, [preset])
 
   const parser = UAParser(window.navigator.userAgent)
   const browser = parser.browser
@@ -107,7 +139,12 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
     selectedItem.name = barcode.name
     selectedItem.caloriesPerCount = barcode.calories_per_serving
     selectedItem.proteinPerCount = barcode.protein_per_serving
-    if (barcode?.calories_per_gram && isNumeric(barcode?.calories_per_gram)) {
+    if (
+      barcode?.calories_per_gram &&
+      isNumeric(barcode?.calories_per_gram) &&
+      // Only when the label has a serving size
+      barcode.calories_per_serving > 0
+    ) {
       if (barcode?.nutrition_data_per === '100ml') {
         // Weight: Easy. 120 calories per serving / 40 calories per gram = 3 grams per serving
         // Volume: Harder. 120 calories per serving / 8 calories per mL = 15 mL per serving
@@ -125,9 +162,34 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
     }
   }
 
+  // The custom food that will be saved (label serving, or a 100 g portion)
+  const draft =
+    barcode && type === 'log' && !existingFood
+      ? buildCustomFood(
+          barcode,
+          brand,
+          foods.filter((food) => food.foodToProfile !== null).map((f) => f.name)
+        )
+      : null
+  const foodToCreate = new Food()
+  if (draft) {
+    foodToCreate.name = draft.name
+    foodToCreate.countName = draft.countName
+    foodToCreate.caloriesPerCount = draft.caloriesPerCount
+    foodToCreate.proteinPerCount = draft.proteinPerCount
+    foodToCreate.countToGram = draft.countToGram
+    foodToCreate.countToTbsp = draft.countToTbsp
+  }
+  const saving = Boolean(draft && createCustomFood)
+  const itemForInputs = existingFood || (saving ? foodToCreate : selectedItem)
+
   return (
     <>
-      {!barcode ? (
+      {!barcode && preset ? (
+        <div className="fcc" style={{ padding: 40 }}>
+          <Spinner color={colors.purple} />
+        </div>
+      ) : !barcode ? (
         <Scan
           scanRate={250}
           onScan={(code: string) => !ran && fetchData(code)}
@@ -148,11 +210,15 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
                 font-weight: 400;
               `}
             >
-              {capitalize(barcode.name || 'Unknown')}
+              {capitalize(
+                existingFood?.name ||
+                  (brand ? `${brand} ${barcode.name}` : barcode.name) ||
+                  'Unknown'
+              )}
             </span>
           </div>
           <InputFields
-            selectedItem={selectedItem}
+            selectedItem={itemForInputs}
             unit={unit}
             setUnit={setUnit}
             amount={amount}
@@ -161,30 +227,44 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
             meal={meal}
             setMeal={setMeal}
           />
-          {/* Custom foods require a count. Hence, if the per serving is missing, you cannot add a custom food */}
-          {/* We only want to create a custom food from a barcode. Doing so from a recipe adds to much complexity */}
-          {/* As the recipe form must re-render with the custom food */}
-          {isNumeric(barcode?.calories_per_serving) &&
-            isNumeric(barcode?.protein_per_serving) &&
-            type === 'log' && (
-              <div className="fr">
-                <label htmlFor="customFood">
-                  Create a custom food from this scan?
-                </label>
-                <input
-                  checked={createCustomFood}
-                  onChange={(e) => {
-                    setCreateCustomFood(e.target.checked)
-                  }}
-                  id="customFood"
-                  type="checkbox"
-                />
-              </div>
-            )}
+          {existingFood && type === 'log' && (
+            <div className="fr mt10" style={{ fontSize: '0.85rem' }}>
+              Already in your foods as “{existingFood.name}”.
+            </div>
+          )}
+          {draft && (
+            <div className="fr">
+              <label htmlFor="customFood">
+                Save to my foods (find it by name next time)
+              </label>
+              <input
+                checked={createCustomFood}
+                onChange={(e) => {
+                  setCreateCustomFood(e.target.checked)
+                }}
+                id="customFood"
+                type="checkbox"
+              />
+            </div>
+          )}
 
           <ButtonPanel
             showSubmit={Boolean(amount && unit)}
             submit={() => {
+              if (existingFood && type === 'log') {
+                submitEditor(
+                  type,
+                  null,
+                  Number(amount),
+                  unit,
+                  null,
+                  enablePlanning,
+                  meal,
+                  dispatch,
+                  existingFood
+                )
+                return
+              }
               submitEditor(
                 type,
                 null,
@@ -195,7 +275,7 @@ export const BarcodeModal: React.FC<props> = ({ profile, type }) => {
                 meal,
                 dispatch,
                 type === 'ingredient' ? selectedItem : undefined,
-                createCustomFood ? selectedItem : undefined
+                saving ? foodToCreate : undefined
               )
             }}
           />

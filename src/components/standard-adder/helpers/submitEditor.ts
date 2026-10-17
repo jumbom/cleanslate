@@ -57,7 +57,7 @@ export const submitEditor = (
         caloriesPerCount: customFoodToCreate?.caloriesPerCount,
         category: 'Food',
         containerName: 'Container',
-        countName: 'Serving',
+        countName: customFoodToCreate.countName || 'Serving',
         countToGram: customFoodToCreate?.countToGram,
         countToTbsp: customFoodToCreate?.countToTbsp,
         group: 'Custom',

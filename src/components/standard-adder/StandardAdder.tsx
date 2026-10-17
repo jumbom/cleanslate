@@ -8,6 +8,7 @@ import type { Profile } from '../../models/profile'
 import type { Recipe } from '../../models/recipe'
 import { colors } from '../../theme'
 import { Meta } from './components/Meta'
+import { ProductSearch } from './components/ProductSearch'
 import { SearchResult } from './components/SearchResults'
 import { SelectedItem } from './components/SelectedItem'
 import { createDummyFood } from './helpers/createDummyFood'
@@ -148,6 +149,12 @@ export const StandardAdder: React.FC<props> = ({
             />
           )
         })}
+
+      {/* Not in your foods? Search supermarket products in Open Food Facts */}
+
+      {!selectedItem && path.length === 0 && type === 'log' && (
+        <ProductSearch searchText={searchText} />
+      )}
 
       {/* Once a dummy food is selected, iterate through the tree of the dummy food */}
 

@@ -1,6 +1,9 @@
 import React from 'react'
+import { toast } from 'react-toastify'
 import { convertToNumber } from '../../helpers/convertToNumber'
+import { addFoodToCloud } from '../../helpers/Food/addFoodToCloud'
 import { updateQuickLogOnCloud } from '../../helpers/quick-log/updateQuickLogOnCloud'
+import type { Food } from '../../models/food'
 import type { Profile } from '../../models/profile'
 import type { AllEvents } from '../../store/store'
 import type { Dispatch } from '../../store/types'
@@ -9,8 +12,16 @@ import { createDefaultItem } from '../item/helpers/createDefaultItem'
 import type { CommonItem } from '../item/types'
 import { SubmitButton } from '../item-update-modal/components/SubmitButton'
 
-type props = { profile: Profile; item: CommonItem | undefined }
-export const QuickLogUpdateModal: React.FC<props> = ({ item, profile }) => {
+type props = {
+  profile: Profile
+  item: CommonItem | undefined
+  foods?: Food[]
+}
+export const QuickLogUpdateModal: React.FC<props> = ({
+  foods = [],
+  item,
+  profile,
+}) => {
   const { dispatch }: { dispatch: Dispatch<AllEvents> } = useStoreon()
   const { enablePlanning } = profile
   const itemToUse =
@@ -25,6 +36,48 @@ export const QuickLogUpdateModal: React.FC<props> = ({ item, profile }) => {
     // Focus the calories input when the unit modal is spawned
     inputRef.current?.focus()
   }, [inputRef])
+
+  // Turn this quick add into one of your foods, so search finds it next time
+  const saveAsFood = () => {
+    const foodName = name.trim()
+    const caloriesNumber = convertToNumber(calories ?? 0) ?? 0
+    const proteinNumber = convertToNumber(protein ?? 0) ?? 0
+    if (!foodName || foodName === 'Quick Add') {
+      toast.error('Give it a name first, e.g. "Lidl protein pudding"')
+      return
+    }
+    if (!caloriesNumber) {
+      toast.error('Enter the calories first')
+      return
+    }
+    const taken = foods.some(
+      (food) => food.name.toLowerCase() === foodName.toLowerCase()
+    )
+    if (taken) {
+      toast.error(`You already have a food called "${foodName}"`)
+      return
+    }
+    addFoodToCloud(
+      {
+        caloriesPerCount: caloriesNumber,
+        category: 'Food',
+        containerName: 'Container',
+        countName: 'Serving',
+        countToGram: null,
+        countToTbsp: null,
+        group: 'Custom',
+        name: foodName,
+        openFoodFactsCode: null,
+        preferredVolumeUnit: 'TBSP',
+        preferredWeightUnit: 'GRAM',
+        proteinPerCount: proteinNumber,
+        servingPerContainer: null,
+      },
+      () => {
+        toast.success(`Saved "${foodName}" to your foods`)
+      }
+    )
+  }
 
   return (
     <form
@@ -91,7 +144,17 @@ export const QuickLogUpdateModal: React.FC<props> = ({ item, profile }) => {
         type="string"
         value={protein || ''}
       />
-      <SubmitButton submit={true} />
+      <div className="fr">
+        <button
+          type="button"
+          className="mt10"
+          css={{ fontSize: '0.85rem', padding: '12px 15px' }}
+          onClick={saveAsFood}
+        >
+          Save as my food
+        </button>
+        <SubmitButton submit={true} />
+      </div>
     </form>
   )
 }
