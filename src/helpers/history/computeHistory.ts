@@ -14,7 +14,27 @@ export type DaySummary = {
   protein: number
   burned: number
   entries: number
+  // How the day's calories were spread over the eating window
+  caloriesByPart: [number, number, number] // morning, midday, afternoon
+  midpointAt: number | null // minutes after midnight when half was eaten
+  lateEntries: number // food logged after the eating cut-off (16:00)
 }
+
+/** Distribution of calories over a set of days */
+export type TimingSummary = {
+  shareByPart: [number, number, number] | null // 0..1 per part of the day
+  avgMidpoint: number | null
+  lateDays: number
+}
+
+/** Your rule: no food after 16:00. Entries later than this are flagged. */
+export const EATING_CUTOFF = 16 * 60
+/** Parts of the eating window: morning until 10:00, midday until 13:00, afternoon after */
+export const PART_ENDS = [10 * 60, 13 * 60] as const
+export const PART_LABELS = ['Until 10:00', '10–13', '13–16'] as const
+
+const partOf = (minutes: number) =>
+  minutes < PART_ENDS[0] ? 0 : minutes < PART_ENDS[1] ? 1 : 2
 
 export type WeeklyWeight = {
   id: string
@@ -28,6 +48,7 @@ export type WeekSummary = {
   avgCalories: number | null
   avgProtein: number | null
   weight: WeeklyWeight | null
+  timing: TimingSummary
 }
 
 export type Strategy = {
@@ -50,6 +71,7 @@ export type StrategyStats = {
   weightChange: number | null
   reviewDue: boolean
   ongoing: boolean
+  timing: TimingSummary
 }
 
 const FORMAT = 'YYYY-MM-DD'
@@ -73,26 +95,65 @@ export const weekStartOf = (day: string) => {
   return date.subtract((date.day() + 6) % 7, 'day').format(FORMAT)
 }
 
+/** Minutes after midnight; entries before the day start belong to the day before */
+const minutesOfDay = (createdAt: string, startTime: string) => {
+  const [hour, minute] = startTime.split(':').map(Number)
+  const date = dayjs(createdAt)
+  const minutes = date.hour() * 60 + date.minute()
+  const dayStart = (hour || 0) * 60 + (minute || 0)
+  return minutes < dayStart ? minutes + 24 * 60 : minutes
+}
+
 export const summariseDays = (
   entries: HistoryEntry[],
   startTime = '00:00:00'
 ): DaySummary[] => {
   const days = new Map<string, DaySummary>()
+  const foodTimes = new Map<string, { at: number; calories: number }[]>()
   for (const entry of entries) {
     const day = dayKey(entry.createdAt, startTime)
-    const summary = days.get(day) || {
+    const summary: DaySummary = days.get(day) || {
       burned: 0,
       calories: 0,
+      caloriesByPart: [0, 0, 0],
       day,
       entries: 0,
+      lateEntries: 0,
+      midpointAt: null,
       protein: 0,
     }
     summary.calories += entry.calories
     summary.protein += entry.protein
     summary.burned += entry.burned
     summary.entries += 1
+
+    if (entry.calories > 0) {
+      const at = minutesOfDay(entry.createdAt, startTime)
+      foodTimes.set(day, [
+        ...(foodTimes.get(day) || []),
+        { at, calories: entry.calories },
+      ])
+      summary.caloriesByPart[partOf(at)] += entry.calories
+      if (at >= EATING_CUTOFF) summary.lateEntries += 1
+    }
     days.set(day, summary)
   }
+
+  // The moment half of the day's calories had been eaten
+  for (const [day, items] of foodTimes) {
+    const summary = days.get(day) as DaySummary
+    const sorted = [...items].sort((a, b) => a.at - b.at)
+    const half = sorted.reduce((sum, item) => sum + item.calories, 0) / 2
+    let eaten = 0
+    for (const item of sorted) {
+      eaten += item.calories
+      if (eaten >= half) {
+        summary.midpointAt = item.at
+        break
+      }
+    }
+  }
+
   return [...days.values()].sort((a, b) => b.day.localeCompare(a.day))
 }
 
@@ -100,6 +161,28 @@ const average = (values: number[]) =>
   values.length === 0
     ? null
     : values.reduce((sum, value) => sum + value, 0) / values.length
+
+/** Calorie distribution over days that have food entries */
+export const summariseTiming = (days: DaySummary[]): TimingSummary => {
+  const totals: [number, number, number] = [0, 0, 0]
+  for (const day of days) {
+    day.caloriesByPart.forEach((calories, i) => {
+      totals[i] += calories
+    })
+  }
+  const total = totals[0] + totals[1] + totals[2]
+  const midpoints = days
+    .map((d) => d.midpointAt)
+    .filter((m): m is number => m !== null)
+  return {
+    avgMidpoint: average(midpoints),
+    lateDays: days.filter((d) => d.lateEntries > 0).length,
+    shareByPart:
+      total > 0
+        ? [totals[0] / total, totals[1] / total, totals[2] / total]
+        : null,
+  }
+}
 
 /** Days with at least one food entry or quick add count as "logged" */
 const loggedDays = (days: DaySummary[]) =>
@@ -125,6 +208,7 @@ export const summariseWeeks = (
       avgCalories: average(daysInWeek.map((d) => d.calories)),
       avgProtein: average(daysInWeek.map((d) => d.protein)),
       daysLogged: daysInWeek.length,
+      timing: summariseTiming(daysInWeek),
       weekStart,
       weight: weights.find((w) => w.weekStart === weekStart) || null,
     }))
@@ -174,6 +258,7 @@ export const calculateStrategyStats = (
     endWeight: end ? Number(end.weightKg) : null,
     ongoing,
     reviewDue: !ongoing && strategy.grade === null,
+    timing: summariseTiming(inPeriod),
     startWeight: baseline ? Number(baseline.weightKg) : null,
     weightChange:
       end && baseline

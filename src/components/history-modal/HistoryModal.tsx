@@ -8,8 +8,10 @@ import {
   type DaySummary,
   dayKey,
   historyStartDate,
+  PART_LABELS,
   type Strategy,
   summariseDays,
+  summariseTiming,
   summariseWeeks,
   type WeeklyWeight,
   type WeekSummary,
@@ -50,6 +52,57 @@ const signedKg = (value: number | null) =>
 const shortDate = (day: string) => dayjs(day).format('D MMM')
 const longDate = (day: string) => dayjs(day).format('ddd D MMM')
 const stars = (grade: number) => '★'.repeat(grade) + '☆'.repeat(5 - grade)
+
+const clock = (minutes: number | null) => {
+  if (minutes === null) return '–'
+  const m = Math.round(minutes) % (24 * 60)
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+const PART_COLORS = ['#ffd166', '#93dcdc', '#ad90de']
+
+/** A thin bar showing how calories were split over the eating window */
+const Distribution: React.FC<{
+  shares: [number, number, number] | null
+  midpoint: number | null
+  lateDays?: number
+  showLegend?: boolean
+}> = ({ lateDays = 0, midpoint, shares, showLegend = false }) => {
+  if (!shares) return null
+  return (
+    <div className="distribution">
+      <div className="bar">
+        {shares.map((share, i) =>
+          share > 0 ? (
+            <div
+              key={PART_LABELS[i]}
+              style={{
+                backgroundColor: PART_COLORS[i],
+                width: `${share * 100}%`,
+              }}
+              title={`${PART_LABELS[i]}: ${Math.round(share * 100)}%`}
+            />
+          ) : null
+        )}
+      </div>
+      <div className="muted legend">
+        {shares.map((share, i) => (
+          <span key={PART_LABELS[i]}>
+            <i style={{ backgroundColor: PART_COLORS[i] }} />
+            {showLegend ? `${PART_LABELS[i]} ` : ''}
+            {Math.round(share * 100)}%
+          </span>
+        ))}
+        <span>· half by {clock(midpoint)}</span>
+        {lateDays > 0 && (
+          <span className="late">
+            · {lateDays === 1 ? 'food' : `${lateDays} days with food`} after
+            16:00
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const strategyOn = (strategies: Strategy[], day: string) =>
   strategies.find(
@@ -119,6 +172,10 @@ const container = css`
     gap: 10px;
     justify-content: space-between;
     padding: 12px 2px;
+    > div:first-of-type {
+      flex: 1;
+      min-width: 0;
+    }
   }
   .numbers {
     text-align: right;
@@ -143,6 +200,35 @@ const container = css`
         background-color: ${colors.background};
         font-weight: 600;
       }
+    }
+  }
+  .distribution {
+    margin-top: 6px;
+    min-width: 0;
+    .bar {
+      background-color: ${colors.lightgrey};
+      border-radius: 4px;
+      display: flex;
+      height: 8px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 0.75rem;
+      gap: 4px 10px;
+      margin-top: 4px;
+      i {
+        border-radius: 2px;
+        display: inline-block;
+        height: 8px;
+        margin-right: 4px;
+        width: 8px;
+      }
+    }
+    .late {
+      color: ${colors.danger};
     }
   }
   .weight-input {
@@ -215,6 +301,7 @@ export const HistoryModal: React.FC<props> = ({ profile, visible }) => {
           avgCalories: null,
           avgProtein: null,
           daysLogged: 0,
+          timing: summariseTiming([]),
           weekStart,
           weight: weights.find((w) => w.weekStart === weekStart) || null,
         }
@@ -389,6 +476,18 @@ export const HistoryModal: React.FC<props> = ({ profile, visible }) => {
             </div>
           </div>
 
+          {stats.timing.shareByPart && (
+            <div className="mt10">
+              <div className="muted">Calorie split over the day</div>
+              <Distribution
+                shares={stats.timing.shareByPart}
+                midpoint={stats.timing.avgMidpoint}
+                lateDays={stats.timing.lateDays}
+                showLegend={true}
+              />
+            </div>
+          )}
+
           {strategy.planNote && (
             <div className="note">
               <b>Plan:</b> {strategy.planNote}
@@ -475,6 +574,11 @@ export const HistoryModal: React.FC<props> = ({ profile, visible }) => {
                   </>
                 )}
               </div>
+              <Distribution
+                shares={week.timing.shareByPart}
+                midpoint={week.timing.avgMidpoint}
+                lateDays={week.timing.lateDays}
+              />
               {weightWeek === week.weekStart ? (
                 <div className="weight-input mt5">
                   <input
@@ -545,6 +649,11 @@ export const HistoryModal: React.FC<props> = ({ profile, visible }) => {
                 {day.day === today ? 'Today' : longDate(day.day)}
               </div>
               {strategy && <span className="tag">{strategy.name}</span>}
+              <Distribution
+                shares={summariseTiming([day]).shareByPart}
+                midpoint={day.midpointAt}
+                lateDays={day.lateEntries > 0 ? 1 : 0}
+              />
             </div>
             <div className="numbers">
               <div>{kcal(day.calories)}</div>

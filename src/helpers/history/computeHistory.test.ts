@@ -5,6 +5,7 @@ import {
   planNewStrategy,
   type Strategy,
   summariseDays,
+  summariseTiming,
   summariseWeeks,
   type WeeklyWeight,
   weekStartOf,
@@ -59,7 +60,7 @@ describe('summariseDays', () => {
       entry('2026-10-19T19:00:00', 700, 40),
       entry('2026-10-20T12:00:00', 500, 30),
     ])
-    expect(days).toEqual([
+    expect(days).toMatchObject([
       { burned: 0, calories: 500, day: '2026-10-20', entries: 1, protein: 30 },
       { burned: 0, calories: 1000, day: '2026-10-19', entries: 2, protein: 60 },
     ])
@@ -77,7 +78,7 @@ describe('summariseWeeks', () => {
       { id: 'w0', weekStart: '2026-10-12', weightKg: 84.9 },
     ]
     const weeks = summariseWeeks(days, weights)
-    expect(weeks[0]).toEqual({
+    expect(weeks[0]).toMatchObject({
       avgCalories: 1800,
       avgProtein: 120,
       daysLogged: 2,
@@ -191,6 +192,45 @@ describe('planNewStrategy', () => {
     expect(planNewStrategy([], '2026-10-19')).toEqual({
       close: null,
       error: null,
+    })
+  })
+})
+
+describe('calorie distribution', () => {
+  const day = summariseDays([
+    entry('2026-10-19T07:15:00', 400, 30), // morning
+    entry('2026-10-19T11:00:00', 600, 40), // midday
+    entry('2026-10-19T15:30:00', 1000, 50), // afternoon
+    entry('2026-10-19T18:00:00', 0, 0, 300), // exercise: not food
+  ])[0]
+
+  it('splits calories over the parts of the eating window', () => {
+    expect(day.caloriesByPart).toEqual([400, 600, 1000])
+  })
+  it('finds when half of the calories had been eaten', () => {
+    // 400 + 600 = 1000 of 2000 at 11:00
+    expect(day.midpointAt).toBe(11 * 60)
+  })
+  it('flags food logged after 16:00, but not exercise', () => {
+    expect(day.lateEntries).toBe(0)
+    const late = summariseDays([entry('2026-10-19T16:30:00', 200)])[0]
+    expect(late.lateEntries).toBe(1)
+  })
+  it('summarises shares and average midpoint over days', () => {
+    const other = summariseDays([
+      entry('2026-10-20T08:00:00', 1500),
+      entry('2026-10-20T14:00:00', 500),
+    ])[0]
+    const timing = summariseTiming([day, other])
+    expect(timing.shareByPart).toEqual([1900 / 4000, 600 / 4000, 1500 / 4000])
+    expect(timing.avgMidpoint).toBe((11 * 60 + 8 * 60) / 2)
+    expect(timing.lateDays).toBe(0)
+  })
+  it('is empty without food', () => {
+    expect(summariseTiming([])).toEqual({
+      avgMidpoint: null,
+      lateDays: 0,
+      shareByPart: null,
     })
   })
 })
