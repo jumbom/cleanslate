@@ -1,0 +1,49 @@
+food.pocket-box.com {
+	header {
+		Referrer-Policy "strict-origin"
+		Strict-Transport-Security "max-age=31536000;"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	@hasura path /v1* /v2* /console* /healthz
+	handle @hasura {
+		reverse_proxy cleanslate-graphql:8080 {
+			header_up -X-Hasura-Role
+		}
+	}
+
+	handle /auth* {
+		reverse_proxy cleanslate-auth:3001 {
+			header_up -X-Hasura-Role
+		}
+	}
+
+	# Open Food Facts product search, passed through our server because the
+	# search service does not allow browsers to call it from other sites (CORS)
+	handle /off-search {
+		rewrite * /search?{query}
+		reverse_proxy https://search.openfoodfacts.org {
+			header_up Host {upstream_hostport}
+			header_up User-Agent "CleanSlate-selfhosted/1.0 (food.pocket-box.com)"
+			header_up -Cookie
+			header_up -Authorization
+		}
+	}
+
+	handle /off-classic {
+		rewrite * /cgi/search.pl?{query}
+		reverse_proxy https://nl.openfoodfacts.org {
+			header_up Host {upstream_hostport}
+			header_up User-Agent "CleanSlate-selfhosted/1.0 (food.pocket-box.com)"
+			header_up -Cookie
+			header_up -Authorization
+		}
+	}
+
+	handle {
+		reverse_proxy cleanslate-client:3000 {
+			header_up -X-Hasura-Role
+		}
+	}
+}

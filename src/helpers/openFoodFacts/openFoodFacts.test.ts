@@ -4,7 +4,13 @@ import {
   productName,
   uniqueName,
 } from './productToFood'
-import { pickText, toProductHits } from './searchProducts'
+import {
+  parseQuery,
+  pickText,
+  rankHits,
+  searchText,
+  toProductHits,
+} from './searchProducts'
 
 const skyr = {
   brands: 'AH,Albert Heijn',
@@ -112,5 +118,61 @@ describe('search results', () => {
       { brand: 'AH', code: '1', name: 'Skyr', quantity: null },
       { brand: null, code: '3', name: 'Kwark', quantity: '500 g' },
     ])
+  })
+})
+
+describe('rankHits', () => {
+  const hit = (name: string, brand: string | null = null) => ({
+    brand,
+    code: name,
+    name,
+    quantity: null,
+  })
+  // Real results the search service returned for "lidl yoghurt"
+  const results = [
+    hit('Yoghurt & banana', 'Yoghurt'),
+    hit('Sintfiguren Lidl', 'Favorina'),
+    hit('Freeway Cola', 'Freeway'),
+    hit('Griekse yoghurt', 'Lidl'),
+    hit('Volle yoghurt', 'Milbona'),
+  ]
+
+  it('requires every word except shop names, shop matches first', () => {
+    expect(rankHits(results, 'Lidl yoghurt').map((h) => h.name)).toEqual([
+      'Griekse yoghurt',
+      'Volle yoghurt', // Milbona is a Lidl brand
+      'Yoghurt & banana',
+    ])
+  })
+  it('matches the start of words and ignores accents and case', () => {
+    expect(
+      rankHits([hit('Crème fraîche'), hit('Kwark')], 'creme fr').map(
+        (h) => h.name
+      )
+    ).toEqual(['Crème fraîche'])
+  })
+  it('keeps everything when only a shop name is typed', () => {
+    expect(rankHits(results, 'lidl')).toHaveLength(5)
+  })
+  it('drops results that miss a word', () => {
+    expect(rankHits(results, 'ah skyr')).toEqual([])
+  })
+})
+
+describe('parseQuery', () => {
+  it('separates shop names from product words', () => {
+    expect(parseQuery('Albert Heijn griekse yoghurt')).toEqual({
+      required: ['griekse', 'yoghurt'],
+      shops: ['ah'],
+    })
+    expect(searchText('lidl yoghurt')).toBe('yoghurt')
+    expect(searchText('lidl')).toBe('lidl')
+  })
+  it('puts Albert Heijn products first for "ah"', () => {
+    const hits = [
+      { brand: 'Arla', code: '1', name: 'Skyr naturel', quantity: null },
+      { brand: 'Albert Heijn', code: '2', name: 'Skyr', quantity: null },
+    ]
+    expect(rankHits(hits, 'ah skyr').map((h) => h.code)).toEqual(['2', '1'])
   })
 })
